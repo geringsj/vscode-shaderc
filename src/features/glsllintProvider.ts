@@ -191,7 +191,11 @@ export default class GLSLLintingProvider implements vscode.CodeActionProvider {
 
   private writeToTmpFileCompileAndLint(textDocument: vscode.TextDocument) {
     this.textChangeLintInProgress = true;
-    let tempFilePath = this.storagePath + "/tmpFile." + textDocument.uri.fsPath.split('.').pop();
+
+    let accepted_suffixes: Array<string> = this.extensions.concat(vscode.workspace.getConfiguration('shaderc-lint').get<Array<string>>('additionalFileExtensions'));
+    let file_suffix = accepted_suffixes.find(value => textDocument.uri.fsPath.endsWith(value));
+    let tempFilePath = this.storagePath + "/tmpFile." + file_suffix;
+
     let fs = require("fs");
     fs.writeFile(tempFilePath, textDocument.getText(), (err) => {
       const path = require('path');
@@ -256,6 +260,17 @@ export default class GLSLLintingProvider implements vscode.CodeActionProvider {
     }
 
     let args = config.glslcArgs.split(/\s+/).filter(arg => arg);
+
+    // pass shader stage directly to compiler if stage mapping is defined for file ending
+    let stage_mappings: Array<[string,string]> = config.shaderStageMapping;
+    let file_stage: [string, string] = stage_mappings.find(
+      (value: [string, string], index, obj) => {
+        return inputFilename.endsWith(value[0]); 
+      });
+    if (file_stage !== undefined) {
+      let stageOption = "-fshader-stage=" + file_stage[1];
+      args.push(stageOption);
+    }
     args.push(inputFilePath);
 
     if (additionalIncludeDir) {
